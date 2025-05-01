@@ -1,0 +1,7 @@
+& "C:\Program Files\Epic Games\UE_5.5\Engine\Binaries\DotNET\AutomationTool\AutomationTool.exe" BuildPlugin -Plugin="e:\code\unreal-mcp\MCPGameProject\Plugins\UnrealMCP\UnrealMCP.uplugin" -Package="e:\code\unreal-mcp\MCPGameProject\Packaged" -Rocket
+
+
+cd e:\code\unreal-mcp\MCPGameProject; & "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" MCPGameProjectEditor Win64 Development -Project="e:\code\unreal-mcp\MCPGameProject\MCPGameProject.uproject" -TargetType=Editor
+
+
+[AssetLog] E:\code\unreal-mcp\MCPGameProject\Content\Widgets\TestKwargsWidget.uasset: Leak Detected!  2 (Slider) still has living Slate widgets, it or the parent CanvasPanel_0 (CanvasPanel) is keeping them in memory.  Make sure all Slate resources (TSharedPtr<SWidget>'s) are being released in the UWidget's ReleaseSlateResources().  Also check the USlot's ReleaseSlateResources().

@@ -2,6 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Json.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "UObject/Object.h"
+#include "UObject/UnrealType.h"
 
 // Forward declarations
 class AActor;
@@ -25,7 +29,7 @@ class UNREALMCP_API FUnrealMCPCommonUtils
 public:
     // JSON utilities
     static TSharedPtr<FJsonObject> CreateErrorResponse(const FString& Message);
-    static TSharedPtr<FJsonObject> CreateSuccessResponse(const TSharedPtr<FJsonObject>& Data = nullptr);
+    static TSharedPtr<FJsonObject> CreateSuccessResponse(const FString& Message = TEXT(""));
     static void GetIntArrayFromJson(const TSharedPtr<FJsonObject>& JsonObject, const FString& FieldName, TArray<int32>& OutArray);
     static void GetFloatArrayFromJson(const TSharedPtr<FJsonObject>& JsonObject, const FString& FieldName, TArray<float>& OutArray);
     static FVector2D GetVector2DFromJson(const TSharedPtr<FJsonObject>& JsonObject, const FString& FieldName);
@@ -56,4 +60,59 @@ public:
     // Property utilities
     static bool SetObjectProperty(UObject* Object, const FString& PropertyName, 
                                  const TSharedPtr<FJsonValue>& Value, FString& OutErrorMessage);
+
+    // Helper to parse JSON array to FVector
+    static bool ParseVector(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FVector& OutVector);
+
+    // Helper to parse JSON array to FRotator
+    static bool ParseRotator(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FRotator& OutRotator);
+
+    // Helper to parse JSON array to FLinearColor (accepts [R,G,B] or [R,G,B,A], assumes 0-1 range)
+    static bool ParseLinearColor(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FLinearColor& OutColor);
+
+    // Helper to find an actor by name
+    static AActor* FindActorByName(const FString& ActorName);
+
+    // Helper to set an FProperty value from a JsonValue
+    static bool SetPropertyFromJson(FProperty* Property, void* ContainerPtr, const TSharedPtr<FJsonValue>& JsonValue);
+
+    // Helper to call a BlueprintCallable function by name with FString parameters
+    static bool CallFunctionByName(UObject* Target, const FString& FunctionName, const TArray<FString>& StringParams, FString& OutError);
+
+    // Helper to set an FProperty value from a JsonValue
+    static bool SetPropertyValueFromJsonValue(FProperty* Property, void* PropertyValue, const TSharedPtr<FJsonValue>& JsonValue);
+
+    // Package path utilities
+    static FString GetGameContentPath() { return TEXT("/Game/"); }
+    static FString GetEngineScriptPath() { return TEXT("/Script/Engine"); }
+    static FString GetCoreScriptPath() { return TEXT("/Script/CoreUObject"); }
+    static FString GetUMGScriptPath() { return TEXT("/Script/UMG"); }
+    
+    static FString BuildGamePath(const FString& Path) 
+    { 
+        FString CleanPath = Path;
+        if (CleanPath.StartsWith(TEXT("/")))
+        {
+            CleanPath = CleanPath.RightChop(1);
+        }
+        return FString::Printf(TEXT("%s%s"), *GetGameContentPath(), *CleanPath);
+    }
+    
+    static FString BuildEnginePath(const FString& Path)
+    {
+        return FString::Printf(TEXT("%s.%s"), *GetEngineScriptPath(), *Path);
+    }
+    
+    static FString BuildCorePath(const FString& Path)
+    {
+        return FString::Printf(TEXT("%s.%s"), *GetCoreScriptPath(), *Path);
+    }
+    
+    static FString BuildUMGPath(const FString& Path)
+    {
+        return FString::Printf(TEXT("%s.%s"), *GetUMGScriptPath(), *Path);
+    }
+
+private:
+    // ... existing code ...
 }; 

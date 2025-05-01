@@ -16,6 +16,10 @@
 #include "Engine/SpotLight.h"
 #include "Camera/CameraActor.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/LightComponent.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "EditorSubsystem.h"
 #include "Subsystems/EditorActorSubsystem.h"
 #include "Engine/Blueprint.h"
@@ -59,6 +63,10 @@ TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleCommand(const FString& C
     else if (CommandType == TEXT("set_actor_property"))
     {
         return HandleSetActorProperty(Params);
+    }
+    else if (CommandType == TEXT("set_light_property"))
+    {
+        return HandleSetLightProperty(Params);
     }
     // Blueprint actor spawning
     else if (CommandType == TEXT("spawn_blueprint_actor"))
@@ -411,21 +419,8 @@ TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleSpawnBlueprintActor(cons
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'actor_name' parameter"));
     }
 
-    // Find the blueprint
-    if (BlueprintName.IsEmpty())
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint name is empty"));
-    }
-
-    FString Root      = TEXT("/Game/Blueprints/");
-    FString AssetPath = Root + BlueprintName;
-
-    if (!FPackageName::DoesPackageExist(AssetPath))
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint '%s' not found – it must reside under /Game/Blueprints"), *BlueprintName));
-    }
-
-    UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetPath);
+    // Find the blueprint - using FUnrealMCPCommonUtils::FindBlueprint instead of direct path construction
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
     if (!Blueprint)
     {
         return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
@@ -597,4 +592,181 @@ TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleTakeScreenshot(const TSh
     }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to take screenshot"));
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleSetLightProperty(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get required parameters
+    FString ActorName;
+    if (!Params->TryGetStringField(TEXT("name"), ActorName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'name' parameter"));
+    }
+
+    FString PropertyName;
+    if (!Params->TryGetStringField(TEXT("property_name"), PropertyName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'property_name' parameter"));
+    }
+
+    FString PropertyValue;
+    if (!Params->TryGetStringField(TEXT("property_value"), PropertyValue))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'property_value' parameter"));
+    }
+
+    // Get the specified actor
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (!World)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get editor world"));
+    }
+
+    AActor* TargetActor = nullptr;
+    TArray<AActor*> AllActors;
+    UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), AllActors);
+    
+    for (AActor* Actor : AllActors)
+    {
+        if (Actor && Actor->GetName() == ActorName)
+        {
+            TargetActor = Actor;
+            break;
+        }
+    }
+
+    if (!TargetActor)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Actor with name '%s' not found"), *ActorName));
+    }
+
+    // Find the light component
+    ULightComponent* LightComponent = nullptr;
+    
+    // Check if it's one of the built-in light types
+    if (APointLight* PointLight = Cast<APointLight>(TargetActor))
+    {
+        LightComponent = PointLight->GetLightComponent();
+    }
+    else if (ASpotLight* SpotLight = Cast<ASpotLight>(TargetActor))
+    {
+        LightComponent = SpotLight->GetLightComponent();
+    }
+    else if (ADirectionalLight* DirLight = Cast<ADirectionalLight>(TargetActor))
+    {
+        LightComponent = DirLight->GetLightComponent();
+    }
+    else
+    {
+        // Try to find any light component in the actor
+        LightComponent = TargetActor->FindComponentByClass<ULightComponent>();
+    }
+
+    if (!LightComponent)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Cannot find light component on actor: %s"), *ActorName));
+    }
+
+    // Set the property on the light component
+    if (PropertyName == TEXT("Intensity"))
+    {
+        float Value = FCString::Atof(*PropertyValue);
+        LightComponent->SetIntensity(Value);
+    }
+    else if (PropertyName == TEXT("LightColor"))
+    {
+        TArray<FString> ColorValues;
+        PropertyValue.ParseIntoArray(ColorValues, TEXT(","), true);
+        
+        if (ColorValues.Num() >= 3)
+        {
+            float R = FCString::Atof(*ColorValues[0]);
+            float G = FCString::Atof(*ColorValues[1]);
+            float B = FCString::Atof(*ColorValues[2]);
+            
+            LightComponent->SetLightColor(FLinearColor(R, G, B));
+        }
+        else
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Invalid color format. Expected R,G,B values."));
+        }
+    }
+    else if (PropertyName == TEXT("AttenuationRadius"))
+    {
+        float Value = FCString::Atof(*PropertyValue);
+        if (UPointLightComponent* PointLightComp = Cast<UPointLightComponent>(LightComponent))
+        {
+            // Set property directly and mark render state dirty
+            PointLightComp->AttenuationRadius = Value;
+            PointLightComp->MarkRenderStateDirty();
+        }
+        else if (USpotLightComponent* SpotLightComp = Cast<USpotLightComponent>(LightComponent))
+        {
+            // Set property directly and mark render state dirty
+            SpotLightComp->AttenuationRadius = Value;
+            SpotLightComp->MarkRenderStateDirty();
+        }
+        else
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("AttenuationRadius is only applicable for point and spot lights"));
+        }
+    }
+    else if (PropertyName == TEXT("SourceRadius"))
+    {
+        float Value = FCString::Atof(*PropertyValue);
+        // Source radius is only available on certain light types
+        if (UPointLightComponent* PointLightComp = Cast<UPointLightComponent>(LightComponent))
+        {
+            PointLightComp->SourceRadius = Value;
+            PointLightComp->MarkRenderStateDirty();
+        }
+        else if (USpotLightComponent* SpotLightComp = Cast<USpotLightComponent>(LightComponent))
+        {
+            SpotLightComp->SourceRadius = Value;
+            SpotLightComp->MarkRenderStateDirty();
+        }
+        else
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("SourceRadius is only applicable for point and spot lights"));
+        }
+    }
+    else if (PropertyName == TEXT("SoftSourceRadius"))
+    {
+        float Value = FCString::Atof(*PropertyValue);
+        // Soft source radius is only available on certain light types
+        if (UPointLightComponent* PointLightComp = Cast<UPointLightComponent>(LightComponent))
+        {
+            PointLightComp->SoftSourceRadius = Value;
+            PointLightComp->MarkRenderStateDirty();
+        }
+        else if (USpotLightComponent* SpotLightComp = Cast<USpotLightComponent>(LightComponent))
+        {
+            SpotLightComp->SoftSourceRadius = Value;
+            SpotLightComp->MarkRenderStateDirty();
+        }
+        else
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("SoftSourceRadius is only applicable for point and spot lights"));
+        }
+    }
+    else if (PropertyName == TEXT("CastShadows"))
+    {
+        bool Value = PropertyValue.ToBool();
+        LightComponent->SetCastShadows(Value);
+    }
+    else
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown light property: %s"), *PropertyName));
+    }
+
+    // Mark the component as modified
+    LightComponent->MarkPackageDirty();
+    
+    TSharedPtr<FJsonObject> ResultData = MakeShared<FJsonObject>();
+    ResultData->SetStringField(TEXT("actor"), ActorName);
+    ResultData->SetStringField(TEXT("property"), PropertyName);
+    ResultData->SetBoolField(TEXT("success"), true);
+    ResultData->SetStringField(TEXT("message"), FString::Printf(TEXT("Set light property %s on %s"), *PropertyName, *ActorName));
+    
+    return ResultData;
 } 

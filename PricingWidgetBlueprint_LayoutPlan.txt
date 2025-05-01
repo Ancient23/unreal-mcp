@@ -1,0 +1,94 @@
+PricingWidgetBlueprint Layout Plan
+================================
+
+Goal: Replicate the exact layout and structure of the pricing page screenshot as a new UMG Widget Blueprint in Unreal Engine.
+
+Widget Hierarchy & Components:
+------------------------------
+1. Root: Canvas Panel (for absolute positioning and flexibility)
+
+2. Title Section:
+   - TextBlock: "Pricing" (large, bold, left-aligned)
+   - TextBlock: "Choose the plan that works for you" (smaller, regular, left-aligned, below title)
+
+3. Toggle Section (Monthly/Yearly):
+   - Horizontal Box (centered)
+     - Button: "MONTHLY" (selected style)
+     - Button: "YEARLY (SAVE 20%)" (unselected style)
+
+4. Pricing Cards Section:
+   - Horizontal Box (centered, spacing between cards)
+     - Card 1: Border/Panel ("Hobby")
+       - Vertical Box
+         - TextBlock: "Hobby"
+         - TextBlock: "Free" (large, bold)
+         - Separator (Line or Border)
+         - TextBlock: "Includes"
+         - Vertical Box (features list)
+           - TextBlock: "✓ Pro two-week trial"
+           - TextBlock: "✓ 2000 completions"
+           - TextBlock: "✓ 50 slow premium requests"
+         - Horizontal Box (buttons)
+           - Button: "DOWNLOAD"
+           - Button: "OTHERS"
+     - Card 2: Border/Panel ("Pro")
+       - Vertical Box
+         - TextBlock: "Pro"
+         - Horizontal Box
+           - TextBlock: "$20" (large, bold)
+           - TextBlock: "/month" (smaller)
+         - Separator
+         - TextBlock: "Everything in Hobby, plus"
+         - Vertical Box (features list)
+           - TextBlock: "✓ Unlimited completions"
+           - TextBlock: "✓ 500 fast premium requests per month (?)"
+           - TextBlock: "✓ Unlimited slow premium requests (?)"
+         - Button: "GET STARTED"
+     - Card 3: Border/Panel ("Business")
+       - Vertical Box
+         - TextBlock: "Business"
+         - Horizontal Box
+           - TextBlock: "$40" (large, bold)
+           - TextBlock: "/user/month" (smaller)
+         - Separator
+         - TextBlock: "Everything in Pro, plus"
+         - Vertical Box (features list)
+           - TextBlock: "✓ Enforce privacy mode org-wide"
+           - TextBlock: "✓ Centralized team billing"
+           - TextBlock: "✓ Admin dashboard with usage stats"
+           - TextBlock: "✓ SAML/OIDC SSO"
+         - Button: "GET STARTED"
+
+Styling & Layout Notes:
+-----------------------
+- Background: Black or very dark color.
+- Card Borders: Rounded corners, subtle border, shadow for elevation.
+- Card Background: Slightly lighter than page background.
+- Title: Large, bold, white/gray text.
+- Subtitle: Smaller, regular, muted color.
+- Toggle Buttons: Highlight selected, subtle border for unselected.
+- Pricing: Large, bold, white text for price, smaller for "/month".
+- Feature List: Use checkmark (✓) icon, left-aligned, monospace or code-style font for feature text.
+- Buttons: White background, black text, rounded corners, padding.
+- Spacing: Consistent vertical and horizontal spacing between elements and cards.
+- Responsive: Cards should center and space evenly, with possible wrapping for smaller screens.
+
+Interactivity:
+--------------
+- Tooltip or info icon for premium request explanations (optional).
+
+Environment Considerations:
+---------------------------
+- Use only standard UMG components (TextBlock, Button, Border, etc.).
+- No mock data or stubbing for dev/prod; real data binding if needed.
+- Keep all logic and layout in the widget blueprint, avoid code duplication.
+- If the widget grows too large (>200-300 lines), refactor into sub-widgets for each card.
+
+Testing:
+--------
+- Check for visual consistency with the provided screenshot.
+
+File Naming:
+------------
+- Widget Blueprint: WBP_PricingPage (suggested)
+- This plan: PricingWidgetBlueprint_LayoutPlan.txt 

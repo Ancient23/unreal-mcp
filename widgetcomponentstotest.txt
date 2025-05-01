@@ -1,0 +1,76 @@
+Widget Components List
+
+TextBlock ✓
+Supported kwargs: text, font_size, color, justification
+Button ✓
+Supported kwargs: background_color
+Image ✓
+Supported kwargs: image_path, brush_color
+CheckBox ✓
+Supported kwargs: is_checked, text
+Slider ✓
+Supported kwargs: min_value, max_value, value, bar_color
+ProgressBar ✓
+Supported kwargs: percent, bar_color, fill_color
+Border ✓
+Supported kwargs: background_color, padding
+ScrollBox ✓
+Supported kwargs: scroll_bar_visibility
+Spacer ✓
+Supported kwargs: size
+WidgetSwitcher ✓
+Supported kwargs: active_widget_index
+Throbber ✓
+Supported kwargs: number_of_pieces
+ExpandableArea ✓
+Supported kwargs: header_text, is_expanded
+RichTextBlock ✓
+Supported kwargs: text, auto_wrap_text
+MultiLineEditableText ✓
+Supported kwargs: text, hint_text
+VerticalBox
+Container that stacks widgets vertically
+HorizontalBox
+Container that arranges widgets horizontally
+Overlay
+Container that overlays widgets
+GridPanel
+Container that arranges widgets in a grid
+SizeBox
+Container that enforces size constraints
+CanvasPanel
+Container with free positioning
+ComboBox ✓
+Supported kwargs: options, selected_option
+EditableText ✓
+Supported kwargs: text, hint_text, is_password, is_read_only
+EditableTextBox ✓
+Supported kwargs: text, hint_text, is_password, is_read_only
+CircularThrobber ✗
+Supported kwargs: number_of_pieces
+SpinBox ✓
+Supported kwargs: min_value, max_value, value, delta
+WrapBox
+Container that wraps child widgets
+ScaleBox
+Container that scales its child
+NamedSlot
+Container for named content
+RadialSlider ✗
+Supported kwargs: value, min_angle, max_angle
+ListView
+List-based container
+TileView
+Grid-based container
+TreeView
+Hierarchical container
+SafeZone
+Container that respects device safe zones
+MenuAnchor ✗
+Supported kwargs: menu_placement
+NativeWidgetHost
+Container for native widgets
+BackgroundBlur ✓
+Supported kwargs: blur_strength
+UniformGridPanel
+Container with uniform cells

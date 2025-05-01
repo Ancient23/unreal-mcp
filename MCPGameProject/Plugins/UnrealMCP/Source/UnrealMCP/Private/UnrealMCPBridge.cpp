@@ -15,7 +15,7 @@
 #include "Engine/PointLight.h"
 #include "Engine/SpotLight.h"
 #include "Camera/CameraActor.h"
-#include "EditorAssetLibrary.h"
+#include "EditorScriptingUtilities/Public/EditorAssetLibrary.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "JsonObjectConverter.h"
 #include "GameFramework/Actor.h"
@@ -57,6 +57,7 @@
 #include "Commands/UnrealMCPProjectCommands.h"
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Commands/UnrealMCPUMGCommands.h"
+#include "Commands/UnrealMCPDataTableCommands.h"
 
 // Default settings
 #define MCP_SERVER_HOST "127.0.0.1"
@@ -69,6 +70,7 @@ UUnrealMCPBridge::UUnrealMCPBridge()
     BlueprintNodeCommands = MakeShared<FUnrealMCPBlueprintNodeCommands>();
     ProjectCommands = MakeShared<FUnrealMCPProjectCommands>();
     UMGCommands = MakeShared<FUnrealMCPUMGCommands>();
+    DataTableCommands = MakeShared<FUnrealMCPDataTableCommands>();
 }
 
 UUnrealMCPBridge::~UUnrealMCPBridge()
@@ -78,6 +80,7 @@ UUnrealMCPBridge::~UUnrealMCPBridge()
     BlueprintNodeCommands.Reset();
     ProjectCommands.Reset();
     UMGCommands.Reset();
+    DataTableCommands.Reset();
 }
 
 // Initialize subsystem
@@ -223,71 +226,115 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 ResultJson = MakeShareable(new FJsonObject);
                 ResultJson->SetStringField(TEXT("message"), TEXT("pong"));
             }
-            // Editor Commands (including actor manipulation)
-            else if (CommandType == TEXT("get_actors_in_level") || 
-                     CommandType == TEXT("find_actors_by_name") ||
-                     CommandType == TEXT("spawn_actor") ||
-                     CommandType == TEXT("create_actor") ||
-                     CommandType == TEXT("delete_actor") || 
-                     CommandType == TEXT("set_actor_transform") ||
-                     CommandType == TEXT("get_actor_properties") ||
-                     CommandType == TEXT("set_actor_property") ||
-                     CommandType == TEXT("spawn_blueprint_actor") ||
-                     CommandType == TEXT("focus_viewport") || 
-                     CommandType == TEXT("take_screenshot"))
-            {
-                ResultJson = EditorCommands->HandleCommand(CommandType, Params);
-            }
-            // Blueprint Commands
-            else if (CommandType == TEXT("create_blueprint") || 
-                     CommandType == TEXT("add_component_to_blueprint") || 
-                     CommandType == TEXT("set_component_property") || 
-                     CommandType == TEXT("set_physics_properties") || 
-                     CommandType == TEXT("compile_blueprint") || 
-                     CommandType == TEXT("set_blueprint_property") || 
-                     CommandType == TEXT("set_static_mesh_properties") ||
-                     CommandType == TEXT("set_pawn_properties"))
-            {
-                ResultJson = BlueprintCommands->HandleCommand(CommandType, Params);
-            }
-            // Blueprint Node Commands
-            else if (CommandType == TEXT("connect_blueprint_nodes") || 
-                     CommandType == TEXT("add_blueprint_get_self_component_reference") ||
-                     CommandType == TEXT("add_blueprint_self_reference") ||
-                     CommandType == TEXT("find_blueprint_nodes") ||
-                     CommandType == TEXT("add_blueprint_event_node") ||
-                     CommandType == TEXT("add_blueprint_input_action_node") ||
-                     CommandType == TEXT("add_blueprint_function_node") ||
-                     CommandType == TEXT("add_blueprint_get_component_node") ||
-                     CommandType == TEXT("add_blueprint_variable"))
-            {
-                ResultJson = BlueprintNodeCommands->HandleCommand(CommandType, Params);
-            }
-            // Project Commands
-            else if (CommandType == TEXT("create_input_mapping"))
-            {
-                ResultJson = ProjectCommands->HandleCommand(CommandType, Params);
-            }
-            // UMG Commands
-            else if (CommandType == TEXT("create_umg_widget_blueprint") ||
-                     CommandType == TEXT("add_text_block_to_widget") ||
-                     CommandType == TEXT("add_button_to_widget") ||
-                     CommandType == TEXT("bind_widget_event") ||
-                     CommandType == TEXT("set_text_block_binding") ||
-                     CommandType == TEXT("add_widget_to_viewport"))
-            {
-                ResultJson = UMGCommands->HandleCommand(CommandType, Params);
-            }
             else
             {
-                ResponseJson->SetStringField(TEXT("status"), TEXT("error"));
-                ResponseJson->SetStringField(TEXT("error"), FString::Printf(TEXT("Unknown command: %s"), *CommandType));
+                // Define command arrays for better maintenance
+                static const TArray<FString> EditorCommands = {
+                    TEXT("get_actors_in_level"), 
+                    TEXT("find_actors_by_name"),
+                    TEXT("spawn_actor"),
+                    TEXT("create_actor"),
+                    TEXT("delete_actor"), 
+                    TEXT("set_actor_transform"),
+                    TEXT("get_actor_properties"),
+                    TEXT("set_actor_property"),
+                    TEXT("set_light_property"),
+                    TEXT("spawn_blueprint_actor"),
+                    TEXT("focus_viewport"), 
+                    TEXT("take_screenshot")
+                };
                 
-                FString ResultString;
-                TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultString);
-                FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer);
-                Promise.SetValue(ResultString);
-                return;
+                static const TArray<FString> BlueprintCommandsList = {
+                    TEXT("create_blueprint"), 
+                    TEXT("add_component_to_blueprint"), 
+                    TEXT("set_component_property"), 
+                    TEXT("set_physics_properties"), 
+                    TEXT("compile_blueprint"), 
+                    TEXT("set_blueprint_property"), 
+                    TEXT("set_static_mesh_properties"),
+                    TEXT("set_pawn_properties"),
+                    TEXT("call_function_by_name")
+                };
+                
+                static const TArray<FString> BlueprintNodeCommandsList = {
+                    TEXT("connect_blueprint_nodes"), 
+                    TEXT("add_blueprint_get_self_component_reference"),
+                    TEXT("add_blueprint_self_reference"),
+                    TEXT("find_blueprint_nodes"),
+                    TEXT("add_blueprint_event_node"),
+                    TEXT("add_blueprint_input_action_node"),
+                    TEXT("add_blueprint_function_node"),
+                    TEXT("add_blueprint_get_component_node"),
+                    TEXT("add_blueprint_variable"),
+                    TEXT("add_blueprint_custom_event_node")
+                };
+                
+                static const TArray<FString> ProjectCommandsList = {
+                    TEXT("create_input_mapping"),
+                    TEXT("create_folder"),
+                    TEXT("create_struct"),
+                    TEXT("update_struct"),
+                    TEXT("get_project_dir"),
+                    TEXT("show_struct_variables"),
+                    TEXT("list_folder_contents")
+                };
+                
+                static const TArray<FString> UMGCommandsList = {
+                    TEXT("create_umg_widget_blueprint"),
+                    TEXT("bind_widget_component_event"),
+                    TEXT("set_text_block_widget_component_binding"),
+                    TEXT("add_widget_to_viewport"),
+                    TEXT("create_parent_and_child_widget_components"),
+                    TEXT("add_child_widget_component_to_parent"),
+                    TEXT("check_widget_component_exists"),
+                    TEXT("set_widget_component_placement"),
+                    TEXT("get_widget_container_component_dimensions"),
+                    TEXT("add_widget_component_to_widget"),
+                    TEXT("set_widget_component_property"),
+                    TEXT("get_widget_component_layout")
+                };
+                
+                // Route to the appropriate handler
+                if (EditorCommands.Contains(CommandType))
+                {
+                    ResultJson = this->EditorCommands->HandleCommand(CommandType, Params);
+                }
+                else if (BlueprintCommandsList.Contains(CommandType))
+                {
+                    ResultJson = BlueprintCommands->HandleCommand(CommandType, Params);
+                }
+                else if (BlueprintNodeCommandsList.Contains(CommandType))
+                {
+                    ResultJson = BlueprintNodeCommands->HandleCommand(CommandType, Params);
+                }
+                else if (ProjectCommandsList.Contains(CommandType))
+                {
+                    ResultJson = ProjectCommands->HandleCommand(CommandType, Params);
+                }
+                else if (UMGCommandsList.Contains(CommandType))
+                {
+                    ResultJson = UMGCommands->HandleCommand(CommandType, Params);
+                }
+                else if (CommandType == TEXT("create_datatable") || 
+                         CommandType == TEXT("add_rows_to_datatable") || 
+                         CommandType == TEXT("get_datatable_rows") || 
+                         CommandType == TEXT("get_datatable_row_names") ||
+                         CommandType == TEXT("update_rows_in_datatable") ||
+                         CommandType == TEXT("delete_datatable_rows"))
+                {
+                    ResultJson = DataTableCommands->HandleCommand(CommandType, Params);
+                }
+                else
+                {
+                    ResponseJson->SetStringField(TEXT("status"), TEXT("error"));
+                    ResponseJson->SetStringField(TEXT("error"), FString::Printf(TEXT("Unknown command: %s"), *CommandType));
+                    
+                    FString ResultString;
+                    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultString);
+                    FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer);
+                    Promise.SetValue(ResultString);
+                    return;
+                }
             }
             
             // Check if the result contains an error

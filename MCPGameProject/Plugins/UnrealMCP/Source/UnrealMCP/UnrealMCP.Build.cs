@@ -19,6 +19,7 @@ public class UnrealMCP : ModuleRules
 		PrivateIncludePaths.AddRange(
 			new string[] {
 				// ... add other private include paths required here ...
+				"Runtime/AdvancedWidgets/Public"
 			}
 		);
 		
@@ -34,24 +35,35 @@ public class UnrealMCP : ModuleRules
 				"HTTP",
 				"Json",
 				"JsonUtilities",
-				"DeveloperSettings"
+				"DeveloperSettings",
+				"EditorScriptingUtilities",
+				"AssetTools"
 			}
 		);
 		
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"UnrealEd",
 				"EditorScriptingUtilities",
 				"EditorSubsystem",
 				"Slate",
 				"SlateCore",
 				"UMG",
+				"AdvancedWidgets",
 				"Kismet",
 				"KismetCompiler",
 				"BlueprintGraph",
 				"Projects",
-				"AssetRegistry"
+				"AssetRegistry",
+				"UMGEditor",
+				"InputCore",
+				"ToolMenus",
+				"CoreUObject",
+				"EditorStyle",
+				"AssetTools",
+				"StructUtils",
+				"PropertyEditor",
+				"BlueprintEditorLibrary"
 			}
 		);
 		
@@ -60,10 +72,10 @@ public class UnrealMCP : ModuleRules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"UnrealEd",
 					"PropertyEditor",      // For widget property editing
 					"ToolMenus",           // For editor UI
-					"BlueprintEditorLibrary", // For Blueprint utilities
-					"UMGEditor"           // For WidgetBlueprint.h and other UMG editor functionality
+					"BlueprintEditorLibrary" // For Blueprint utilities
 				}
 			);
 		}
