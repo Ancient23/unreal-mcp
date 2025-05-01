@@ -5,7 +5,7 @@ This module provides tools for creating and manipulating UMG Widget Blueprints i
 """
 
 import logging
-from typing import Any, Dict, List, Union
+from typing import Dict, List
 from mcp.server.fastmcp import FastMCP, Context
 # Use _impl aliases for implementation functions
 from utils.widgets.widget_components import (
@@ -20,7 +20,7 @@ from utils.widgets.widget_components import (
     get_widget_container_component_dimensions as get_widget_container_component_dimensions_impl,
     add_widget_component_to_widget as add_widget_component_to_widget_impl,
     set_widget_component_property as set_widget_component_property_impl,
-    get_widget_component_layout_impl  # Import the new _impl function
+    get_widget_component_layout as get_widget_component_layout_impl
 )
 
 # Get logger
@@ -172,8 +172,8 @@ def register_umg_tools(mcp: FastMCP):
         child_component_name: str,
         create_parent_if_missing: bool = False,
         parent_component_type: str = "Border",
-        parent_position: List[float] = [0.0, 0.0],
-        parent_size: List[float] = [300.0, 200.0]
+        parent_position: List[float] = None,
+        parent_size: List[float] = None
     ) -> Dict[str, object]:
         """
         Add a widget component as a child to another component.
@@ -213,6 +213,12 @@ def register_umg_tools(mcp: FastMCP):
                 parent_size=[300.0, 400.0]
             )
         """
+        # Set defaults for None values
+        if parent_position is None:
+            parent_position = [0.0, 0.0]
+        if parent_size is None:
+            parent_size = [300.0, 200.0]
+            
         # Call aliased implementation
         return add_child_widget_component_to_parent_impl(
             ctx, 
@@ -233,8 +239,8 @@ def register_umg_tools(mcp: FastMCP):
         child_component_name: str,
         parent_component_type: str = "Border",
         child_component_type: str = "TextBlock",
-        parent_position: List[float] = [0.0, 0.0],
-        parent_size: List[float] = [300.0, 200.0],
+        parent_position: List[float] = None,
+        parent_size: List[float] = None,
         child_attributes: Dict[str, object] = None
     ) -> Dict[str, object]:
         """
@@ -284,6 +290,14 @@ def register_umg_tools(mcp: FastMCP):
                 parent_size=[300.0, 400.0]
             )
         """
+        # Set defaults for None values
+        if parent_position is None:
+            parent_position = [0.0, 0.0]
+        if parent_size is None:
+            parent_size = [300.0, 200.0]
+        if child_attributes is None:
+            child_attributes = {}
+            
         # Call aliased implementation
         return create_parent_and_child_widget_components_impl(
             ctx, 
@@ -479,18 +493,19 @@ def register_umg_tools(mcp: FastMCP):
         """
         Set one or more properties on a specific component within a UMG Widget Blueprint.
 
-        Parameters:
+        Args:
             widget_name: Name of the target Widget Blueprint
             component_name: Name of the component to modify
-            kwargs: Properties to set (as keyword arguments or a dict)
+            **kwargs: Properties to set (as keyword arguments)
 
-        Examples:
+        Returns:
+            Dict containing success status and property update information
             
+        Examples:
             # Set the text and color of a TextBlock, including a struct property (ColorAndOpacity)
             set_widget_component_property(
-                ctx,
-                "MyWidget",
-                "MyTextBlock",
+                widget_name="MyWidget",
+                component_name="MyTextBlock",
                 Text="Red Text",
                 ColorAndOpacity={
                     "SpecifiedColor": {
@@ -501,13 +516,11 @@ def register_umg_tools(mcp: FastMCP):
                     }
                 }
             )
-            # Simple properties can be passed directly; struct properties (like ColorAndOpacity) as dicts.
-
-            # Set the brush color (including opacity) of a Border using a flat RGBA dictionary
+            
+            # Set the brush color (including opacity) of a Border
             set_widget_component_property(
-                ctx,
-                "MyWidget",
-                "MyBorder",
+                widget_name="MyWidget",
+                component_name="MyBorder",
                 BrushColor={
                     "R": 1.0,
                     "G": 1.0,
@@ -515,17 +528,32 @@ def register_umg_tools(mcp: FastMCP):
                     "A": 0.3
                 }
             )
+            
+            # Set multiple properties at once
+            set_widget_component_property(
+                widget_name="PlayerUI",
+                component_name="StatusText",
+                Text="Ready!",
+                FontSize=18,
+                ColorAndOpacity={
+                    "SpecifiedColor": {
+                        "R": 0.0,
+                        "G": 0.8,
+                        "B": 0.2,
+                        "A": 1.0
+                    }
+                }
+            )
         """ 
-        logger.info(f"[DEBUG] TOOL ENTRY: set_widget_component_property called with widget_name={widget_name}, component_name={component_name}, kwargs={kwargs}")
-        try:
-            # Call aliased implementation
-            return set_widget_component_property_impl(ctx, widget_name, component_name, **(kwargs if isinstance(kwargs, dict) else {"Text": kwargs}))
-        except Exception as e:
-            logger.error(f"[ERROR] Exception in set_widget_component_property: {e}")
-            raise
+        logger.info(f"Setting properties on {component_name} in {widget_name}")
+        # Call aliased implementation
+        return set_widget_component_property_impl(ctx, widget_name, component_name, **kwargs)
 
     @mcp.tool()
-    def get_widget_component_layout(ctx: Context, widget_name: str) -> dict:
+    def get_widget_component_layout(
+        ctx: Context,
+        widget_name: str
+    ) -> Dict[str, object]:
         """
         Get hierarchical layout information for all components within a UMG Widget Blueprint.
 
