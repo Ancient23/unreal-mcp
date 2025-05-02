@@ -271,13 +271,15 @@ from tools.blueprint_tools import register_blueprint_tools
 from tools.node_tools import register_blueprint_node_tools
 from tools.project_tools import register_project_tools
 from tools.umg_tools import register_umg_tools
+from tools.datatable_tools import register_datatable_tools
 
 # Register tools
 register_editor_tools(mcp)
 register_blueprint_tools(mcp)
 register_blueprint_node_tools(mcp)
 register_project_tools(mcp)
-register_umg_tools(mcp)  
+register_umg_tools(mcp)
+register_datatable_tools(mcp)
 
 @mcp.prompt()
 def info():
@@ -292,12 +294,24 @@ def info():
       Add a Text Block widget with customizable properties
     - `add_button_to_widget(widget_name, button_name, text="", position=[0,0], size=[200,50], font_size=12, color=[1,1,1,1], background_color=[0.1,0.1,0.1,1])`
       Add a Button widget with text and styling
-    - `bind_widget_event(widget_name, widget_component_name, event_name, function_name="")`
+    - `bind_widget_component_event(widget_name, widget_component_name, event_name, function_name="")`
       Bind events like OnClicked to functions
     - `add_widget_to_viewport(widget_name, z_order=0)`
       Add widget instance to game viewport
-    - `set_text_block_binding(widget_name, text_block_name, binding_property, binding_type="Text")`
+    - `set_text_block_widget_component_binding(widget_name, text_block_name, binding_property, binding_type="Text")`
       Set up dynamic property binding for text blocks
+    - `add_child_widget_component_to_parent(widget_name, parent_component_name, child_component_name, create_parent_if_missing=False, parent_component_type="Border", parent_position=[0.0, 0.0], parent_size=[300.0, 200.0])`
+      Add a widget component as a child to another component.
+    - `create_parent_and_child_widget_components(widget_name, parent_component_name, child_component_name, parent_component_type="Border", child_component_type="TextBlock", parent_position=[0.0, 0.0], parent_size=[300.0, 200.0], child_attributes=None)`
+      Create a new parent widget component with a new child component.
+    - `check_widget_component_exists(widget_name, component_name)`
+      Check if a component exists in the specified widget blueprint.
+    - `set_widget_component_placement(widget_name, component_name, position?, size?, alignment?)`
+      Change the placement (position/size) of a widget component.
+    - `get_widget_container_component_dimensions(widget_name, container_name="CanvasPanel_0")`
+      Get the dimensions of a container widget in a UMG Widget Blueprint.
+    - `add_widget_component_to_widget(widget_name, component_name, component_type, position?, size?, **kwargs)`
+      Unified function to add any type of widget component to a UMG Widget Blueprint.
 
     ## Editor Tools
     ### Viewport and Screenshots

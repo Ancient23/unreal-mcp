@@ -1,0 +1,18 @@
+2025-04-28 23:10:34,054 - mcp.server.lowlevel.server - DEBUG - [server.py:145] - Initializing server 'UnrealMCP'
+2025-04-28 23:10:34,054 - mcp.server.lowlevel.server - DEBUG - [server.py:384] - Registering handler for ListToolsRequest
+2025-04-28 23:10:34,054 - mcp.server.lowlevel.server - DEBUG - [server.py:406] - Registering handler for CallToolRequest
+2025-04-28 23:10:34,054 - mcp.server.lowlevel.server - DEBUG - [server.py:252] - Registering handler for ListResourcesRequest
+2025-04-28 23:10:34,054 - mcp.server.lowlevel.server - DEBUG - [server.py:286] - Registering handler for ReadResourceRequest
+2025-04-28 23:10:34,054 - mcp.server.lowlevel.server - DEBUG - [server.py:222] - Registering handler for PromptListRequest
+2025-04-28 23:10:34,054 - mcp.server.lowlevel.server - DEBUG - [server.py:239] - Registering handler for GetPromptRequest
+2025-04-28 23:10:34,054 - mcp.server.lowlevel.server - DEBUG - [server.py:267] - Registering handler for ListResourceTemplatesRequest
+2025-04-28 23:10:34,064 - UnrealMCP - INFO - [umg_tools.py:582] - UMG tools module loaded
+2025-04-28 23:10:34,069 - UnrealMCP - INFO - [editor_tools.py:358] - Editor tools registered successfully
+2025-04-28 23:10:34,074 - UnrealMCP - INFO - [blueprint_tools.py:281] - Blueprint tools registered successfully
+2025-04-28 23:10:34,078 - UnrealMCP - INFO - [node_tools.py:198] - Blueprint node tools registered successfully
+2025-04-28 23:10:34,080 - UnrealMCP - INFO - [project_tools.py:215] - Project tools registered successfully
+2025-04-28 23:10:34,086 - UnrealMCP - INFO - [umg_tools.py:579] - UMG tools registered successfully
+2025-04-28 23:10:34,090 - UnrealMCP - INFO - [unreal_mcp_server.py:390] - Starting MCP server with stdio transport
+2025-04-28 23:10:34,092 - asyncio - DEBUG - [proactor_events.py:631] - Using proactor: IocpProactor
+2025-04-28 23:10:34,093 - UnrealMCP - INFO - [unreal_mcp_server.py:242] - UnrealMCP server starting up
+2025-04-28 23:10:34,093 - UnrealMCP - INFO - [unreal_mcp_server.py:49] - Connecting to Unreal at 127.0.0.1:55557...

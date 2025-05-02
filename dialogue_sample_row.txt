@@ -1,0 +1,21 @@
+{
+  "row_name": "Greeting",
+  "row_data": {
+    "DialogueID_9_68CC011C47843E08B2B066A6B6EB7F81": "Greeting",
+    "Speaker_4_C9001B784A777FD325DA539E24D36F36": "NPC",
+    "Text_6_D78C4E9C4EFCD204C24B5BA1F539FC72": "Hello, traveler! What brings you here?",
+    "Timestamp_8_9BA8594E44BB457818A9D2B78B452A88": "",
+    "Responses_13_33B1191A4791CF22B4C93EB103931A42": [
+      {
+        "ResponseText_2_68181E244F32A746ED5CD6BFBB1ED8A0": "I'm looking for adventure.",
+        "NextDialogueID_4_3D6058A041DAC5B3731EC0872C99C27A": "Adventure",
+        "bEndsDialogue_6_7741C8DE40D7CAA9B6E93D8A0C7452D1": ""
+      },
+      {
+        "ResponseText_2_68181E244F32A746ED5CD6BFBB1ED8A0": "Just passing by.",
+        "NextDialogueID_4_3D6058A041DAC5B3731EC0872C99C27A": "PassingBy",
+        "bEndsDialogue_6_7741C8DE40D7CAA9B6E93D8A0C7452D1": ""
+      }
+    ]
+  }
+} 

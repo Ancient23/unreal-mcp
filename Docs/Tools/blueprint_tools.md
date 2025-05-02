@@ -90,29 +90,44 @@ Set the mesh for a StaticMeshComponent.
 
 ### set_component_property
 
-Set a property on a component in a Blueprint.
+Set one or more properties on a component in a Blueprint.
 
 **Parameters:**
 - `blueprint_name` (string) - The name of the Blueprint
 - `component_name` (string) - The name of the component
-- `property_name` (string) - The name of the property to set
-- `property_value` (any) - The value to set for the property
+- `kwargs` (object) - Dictionary of property names and values to set. You can pass properties as direct keyword arguments (recommended), or as a single dict using `kwargs={...}`. If double-wrapped (i.e., `kwargs={'kwargs': {...}}`), the function will automatically flatten it for convenience. This matches the widget property setter pattern.
 
 **Returns:**
-- Result of the property setting operation including success status and message
+- Result of the property setting operation including lists of success_properties and failed_properties
 
-**Example:**
+**Examples:**
+
+Preferred usage (direct keyword arguments):
 ```json
 {
   "command": "set_component_property",
   "params": {
     "blueprint_name": "MyActor",
     "component_name": "Mesh",
-    "property_name": "StaticMesh",
-    "property_value": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube"
+    "kwargs": {
+      "StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube",
+      "Mobility": "Movable"
+    }
   }
 }
 ```
+
+Also supported (dict):
+```python
+set_component_property(ctx, "MyActor", "Mesh", kwargs={"StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", "Mobility": "Movable"})
+```
+
+If double-wrapped (rare, but handled):
+```python
+set_component_property(ctx, "MyActor", "Mesh", kwargs={"kwargs": {"StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", "Mobility": "Movable"}})
+```
+
+All styles above will be handled correctly and set the properties as expected.
 
 ### set_physics_properties
 
@@ -245,6 +260,148 @@ Spawn an actor from a Blueprint.
   }
 }
 ```
+
+### add_blueprint_variable
+
+Add a variable to a Blueprint. Supports built-in types, arrays, and custom structures.
+
+**Parameters:**
+- `blueprint_name` (string) - The name of the target Blueprint
+- `variable_name` (string) - Name of the variable to create
+- `variable_type` (string) - Type of the variable (see supported types below)
+- `is_exposed` (boolean, optional) - Whether to expose the variable to the editor, defaults to false
+
+**Supported Variable Types:**
+
+1. Basic Types:
+- `Boolean` - Boolean value (true/false)
+- `Integer` or `Int` - 32-bit integer
+- `Float` - Floating point number
+- `String` - Text string
+- `Name` - Unreal Engine FName type
+- `Text` - Unreal Engine localized text
+- `Vector` - 3D vector (X, Y, Z)
+- `Rotator` - Rotation in Euler angles
+- `Transform` - Complete transform (Location, Rotation, Scale)
+- `Color` - Linear color (RGBA)
+
+2. Array Types:
+Add `[]` suffix to any basic type to create an array:
+- `String[]` - Array of strings
+- `Integer[]` - Array of integers
+- `Float[]` - Array of floats
+etc.
+
+3. Custom Structs:
+For custom structs, use either:
+- Full path: `/Game/Path/To/StructName`
+- Struct name with F prefix: `FStructName`
+- Plain struct name: `StructName`
+
+**Returns:**
+- Result of the variable creation operation including success status and variable information
+
+**Examples:**
+
+1. Basic Types:
+```json
+{
+  "command": "add_blueprint_variable",
+  "params": {
+    "blueprint_name": "PlayerBlueprint",
+    "variable_name": "Score",
+    "variable_type": "Integer",
+    "is_exposed": true
+  }
+}
+```
+
+```json
+{
+  "command": "add_blueprint_variable",
+  "params": {
+    "blueprint_name": "PlayerBlueprint",
+    "variable_name": "PlayerName",
+    "variable_type": "String",
+    "is_exposed": true
+  }
+}
+```
+
+```json
+{
+  "command": "add_blueprint_variable",
+  "params": {
+    "blueprint_name": "PlayerBlueprint",
+    "variable_name": "Position",
+    "variable_type": "Vector",
+    "is_exposed": true
+  }
+}
+```
+
+2. Array Types:
+```json
+{
+  "command": "add_blueprint_variable",
+  "params": {
+    "blueprint_name": "PlayerBlueprint",
+    "variable_name": "Inventory",
+    "variable_type": "String[]",
+    "is_exposed": true
+  }
+}
+```
+
+```json
+{
+  "command": "add_blueprint_variable",
+  "params": {
+    "blueprint_name": "PlayerBlueprint",
+    "variable_name": "HighScores",
+    "variable_type": "Integer[]",
+    "is_exposed": true
+  }
+}
+```
+
+3. Custom Struct Types:
+First create the struct:
+```json
+{
+  "command": "create_struct",
+  "params": {
+    "struct_name": "PlayerStats",
+    "properties": [
+      {"name": "Health", "type": "Float"},
+      {"name": "Armor", "type": "Float"},
+      {"name": "Level", "type": "Integer"}
+    ],
+    "path": "/Game/DataStructures"
+  }
+}
+```
+
+Then add the struct variable:
+```json
+{
+  "command": "add_blueprint_variable",
+  "params": {
+    "blueprint_name": "PlayerBlueprint",
+    "variable_name": "Stats",
+    "variable_type": "/Game/DataStructures/PlayerStats",
+    "is_exposed": true
+  }
+}
+```
+
+**Notes:**
+1. Variable names must be unique within the Blueprint
+2. Variable types are case-insensitive (e.g., "integer" and "Integer" are equivalent)
+3. When using custom structs, it's recommended to use the full path to avoid ambiguity
+4. The `is_exposed` parameter determines if the variable is visible and editable in the editor's Details panel
+5. Array variables are created by appending `[]` to the base type
+6. Custom struct variables require the struct to exist before creating the variable
 
 ## Error Handling
 

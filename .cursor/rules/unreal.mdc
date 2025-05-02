@@ -1,7 +1,12 @@
 ---
-description: Apply this rule for any MCP Tool call for the Unreal Engine editor
+description: 
 globs: 
 alwaysApply: false
+---
+---
+description: Apply this rule for any MCP Tool call for the Unreal Engine editor
+globs: MCPGameProject/Plugins/UnrealMCP/Source/UnrealMCP/
+alwaysApply: true
 ---
 # Working with Unreal Engine
 

@@ -28,9 +28,11 @@ The Unreal MCP integration provides comprehensive tools for controlling Unreal E
 | Category | Capabilities |
 |----------|-------------|
 | **Actor Management** | • Create and delete actors (cubes, spheres, lights, cameras, etc.)<br>• Set actor transforms (position, rotation, scale)<br>• Query actor properties and find actors by name<br>• List all actors in the current level |
-| **Blueprint Development** | • Create new Blueprint classes with custom components<br>• Add and configure components (mesh, camera, light, etc.)<br>• Set component properties and physics settings<br>• Compile Blueprints and spawn Blueprint actors<br>• Create input mappings for player controls |
-| **Blueprint Node Graph** | • Add event nodes (BeginPlay, Tick, etc.)<br>• Create function call nodes and connect them<br>• Add variables with custom types and default values<br>• Create component and self references<br>• Find and manage nodes in the graph |
-| **Editor Control** | • Focus viewport on specific actors or locations<br>• Control viewport camera orientation and distance |
+| **Blueprint Development** | • Create new Blueprint classes with custom parent classes (Actor, Pawn, etc.)<br>• Add and configure components (StaticMesh, Camera, Light, etc.)<br>• Set component properties and static mesh assets<br>• Configure physics properties (simulation, gravity, mass, damping)<br>• Set Pawn-specific properties (auto possess, rotation control)<br>• Compile Blueprints and spawn Blueprint actors with custom transforms<br>• Create project-wide input mappings for player controls |
+| **Blueprint Node Graph** | • Add event nodes for standard events (BeginPlay, Tick) and input actions<br>• Create function call nodes with target components and parameters<br>• Connect nodes with proper pin linkages for execution and data flow<br>• Add variables with various types (Boolean, Integer, Float, Vector, etc.)<br>• Create component references and self references in the graph<br>• Find and identify nodes in the Blueprint graph by type/event<br>• Build complete gameplay logic chains through the Blueprint visual scripting system |
+| **UMG/UI Development** | • Create UMG Widget Blueprints for building user interfaces<br>• Add and customize UI components (text, buttons, images, checkboxes, sliders, etc.)<br>• Create complex layouts with scrollboxes, borders, and containers<br>• Set up event bindings and property bindings for dynamic UI<br>• Add widgets to the viewport with z-ordering control |
+| **Project Management** | • Create and organize content browser folders for asset management<br>• Create project folders for non-content files (logs, intermediate, etc.)<br>• Set up input mappings for keyboard, mouse and gamepad controls<br>• Configure project-wide settings for game development |
+| **Editor Control** | • Focus viewport on specific actors or locations with custom distance<br>• Control viewport camera orientation with precise angle settings<br>• Find actors in the scene using name pattern matching and wildcards<br>• Access and modify actor properties through the editor interface<br>• Create and configure different light types (Point, Spot, Directional)<br>• Adjust light properties (intensity, color, attenuation, shadows, source size) |
 
 All these capabilities are accessible through natural language commands via AI assistants, making it easy to automate and control Unreal Engine workflows.
 
@@ -61,7 +63,7 @@ All these capabilities are accessible through natural language commands via AI a
     - **UnrealMCP.uplugin** - Plugin definition
 
 - **Python/** - Python server and tools
-  - **tools/** - Tool modules for actor, editor, and blueprint operations
+  - **tools/** - Tool modules for actor, editor, blueprint, and UMG operations
   - **scripts/** - Example scripts and demos
 
 - **Docs/** - Comprehensive documentation

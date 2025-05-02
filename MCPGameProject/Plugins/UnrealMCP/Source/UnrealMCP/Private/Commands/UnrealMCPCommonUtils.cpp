@@ -1,6 +1,7 @@
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "GameFramework/Actor.h"
 #include "Engine/Blueprint.h"
+#include "WidgetBlueprint.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
@@ -25,6 +26,13 @@
 #include "BlueprintActionDatabase.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "EngineUtils.h"
+#include "JsonObjectConverter.h"
+#include "UObject/EnumProperty.h"
+#include "UObject/TextProperty.h"
+#include "UObject/StructOnScope.h"
 
 // JSON Utilities
 TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateErrorResponse(const FString& Message)
@@ -35,14 +43,14 @@ TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateErrorResponse(const FString
     return ResponseObject;
 }
 
-TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateSuccessResponse(const TSharedPtr<FJsonObject>& Data)
+TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateSuccessResponse(const FString& Message /* = TEXT("") */)
 {
     TSharedPtr<FJsonObject> ResponseObject = MakeShared<FJsonObject>();
     ResponseObject->SetBoolField(TEXT("success"), true);
     
-    if (Data.IsValid())
+    if (!Message.IsEmpty())
     {
-        ResponseObject->SetObjectField(TEXT("data"), Data);
+        ResponseObject->SetStringField(TEXT("message"), Message);
     }
     
     return ResponseObject;
@@ -153,8 +161,126 @@ UBlueprint* FUnrealMCPCommonUtils::FindBlueprint(const FString& BlueprintName)
 
 UBlueprint* FUnrealMCPCommonUtils::FindBlueprintByName(const FString& BlueprintName)
 {
-    FString AssetPath = TEXT("/Game/Blueprints/") + BlueprintName;
-    return LoadObject<UBlueprint>(nullptr, *AssetPath);
+    // Early exit for empty names
+    if (BlueprintName.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Empty blueprint name provided"));
+        return nullptr;
+    }
+
+    // Step 1: Normalize the path
+    FString NormalizedName = BlueprintName;
+    
+    // Remove .uasset extension if present
+    if (NormalizedName.EndsWith(TEXT(".uasset"), ESearchCase::IgnoreCase))
+    {
+        NormalizedName = NormalizedName.LeftChop(7);
+    }
+    
+    // Handle absolute vs relative paths
+    bool bIsAbsolutePath = NormalizedName.StartsWith(TEXT("/"));
+    if (bIsAbsolutePath)
+    {
+        // If it's an absolute path starting with /Game/, use it directly
+        if (NormalizedName.StartsWith(TEXT("/Game/")))
+        {
+            UE_LOG(LogTemp, Display, TEXT("Using absolute path: %s"), *NormalizedName);
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *NormalizedName);
+            if (Blueprint)
+            {
+                return Blueprint;
+            }
+        }
+        // If it starts with / but not /Game/, prepend /Game/
+        else
+        {
+            NormalizedName = FString(TEXT("/Game")) + NormalizedName;
+            UE_LOG(LogTemp, Display, TEXT("Converted to game path: %s"), *NormalizedName);
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *NormalizedName);
+            if (Blueprint)
+            {
+                return Blueprint;
+            }
+        }
+    }
+    else
+    {
+        // For relative paths, extract any subdirectories
+        FString SubPath;
+        FString BaseName;
+        if (NormalizedName.Contains(TEXT("/")))
+        {
+            NormalizedName.Split(TEXT("/"), &SubPath, &BaseName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+            // Reconstruct with /Game/ prefix
+            NormalizedName = FString::Printf(TEXT("/Game/%s/%s"), *SubPath, *BaseName);
+            UE_LOG(LogTemp, Display, TEXT("Reconstructed path with subdirectory: %s"), *NormalizedName);
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *NormalizedName);
+            if (Blueprint)
+            {
+                return Blueprint;
+            }
+        }
+        else
+        {
+            BaseName = NormalizedName;
+        }
+
+        // Try standard locations for relative paths
+        TArray<FString> DefaultPaths = {
+            FString::Printf(TEXT("/Game/Blueprints/%s"), *BaseName),
+            FString::Printf(TEXT("/Game/%s"), *BaseName)
+        };
+
+        // Try each default path
+        for (const FString& Path : DefaultPaths)
+        {
+            UE_LOG(LogTemp, Display, TEXT("Trying blueprint at path: %s"), *Path);
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *Path);
+            if (Blueprint)
+            {
+                return Blueprint;
+            }
+        }
+    }
+
+    // If still not found, use asset registry for a thorough search
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    TArray<FAssetData> AllBlueprintAssetData;
+    
+    // Create a filter for blueprints and widget blueprints
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+    Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
+    Filter.PackagePaths.Add(TEXT("/Game"));
+    Filter.bRecursivePaths = true;
+
+    UE_LOG(LogTemp, Display, TEXT("Performing Asset Registry search for: %s"), *NormalizedName);
+    AssetRegistryModule.Get().GetAssets(Filter, AllBlueprintAssetData);
+    UE_LOG(LogTemp, Display, TEXT("Found %d total blueprint assets"), AllBlueprintAssetData.Num());
+
+    // First try exact name match
+    FString SearchName = FPaths::GetBaseFilename(NormalizedName);
+    for (const FAssetData& Asset : AllBlueprintAssetData)
+    {
+        if (Asset.AssetName.ToString() == SearchName)
+        {
+            UE_LOG(LogTemp, Display, TEXT("Found exact match: %s"), *Asset.GetObjectPathString());
+            return Cast<UBlueprint>(Asset.GetAsset());
+        }
+    }
+
+    // If exact match fails, try case-insensitive match
+    for (const FAssetData& Asset : AllBlueprintAssetData)
+    {
+        if (Asset.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Found case-insensitive match: %s"), *Asset.GetObjectPathString());
+            return Cast<UBlueprint>(Asset.GetAsset());
+        }
+    }
+
+    UE_LOG(LogTemp, Error, TEXT("Blueprint '%s' not found after exhaustive search"), *BlueprintName);
+    return nullptr;
 }
 
 UEdGraph* FUnrealMCPCommonUtils::FindOrCreateEventGraph(UBlueprint* Blueprint)
@@ -702,8 +828,463 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
             }
         }
     }
+    else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
+    {
+        if (Value->Type == EJson::Array)
+        {
+            const TArray<TSharedPtr<FJsonValue>>& Arr = Value->AsArray();
+            bool bStructHandled = false;
+
+            // Handle FVector2D
+            if (StructProp->Struct == TBaseStructure<FVector2D>::Get())
+            {
+                if (Arr.Num() == 2)
+                {
+                    FVector2D Vec2D(Arr[0]->AsNumber(), Arr[1]->AsNumber());
+                    StructProp->CopySingleValue(PropertyAddr, &Vec2D);
+                    UE_LOG(LogTemp, Display, TEXT("Setting FVector2D property %s to (%f, %f)"), 
+                          *PropertyName, Vec2D.X, Vec2D.Y);
+                    bStructHandled = true;
+                }
+                else
+                {
+                    OutErrorMessage = FString::Printf(TEXT("FVector2D property requires 2 values, got %d"), Arr.Num());
+                }
+            }
+            // Handle FLinearColor
+            else if (StructProp->Struct == TBaseStructure<FLinearColor>::Get())
+            {
+                if (Arr.Num() == 4) // RGBA
+                {
+                    FLinearColor Color(
+                        Arr[0]->AsNumber(),
+                        Arr[1]->AsNumber(),
+                        Arr[2]->AsNumber(),
+                        Arr[3]->AsNumber()
+                    );
+                    StructProp->CopySingleValue(PropertyAddr, &Color);
+                    UE_LOG(LogTemp, Display, TEXT("Setting FLinearColor property %s to (R=%f, G=%f, B=%f, A=%f)"), 
+                          *PropertyName, Color.R, Color.G, Color.B, Color.A);
+                    bStructHandled = true;
+                }
+                 else if (Arr.Num() == 3) // RGB, assume A=1
+                {
+                    FLinearColor Color(
+                        Arr[0]->AsNumber(),
+                        Arr[1]->AsNumber(),
+                        Arr[2]->AsNumber(),
+                        1.0f // Default Alpha to 1
+                    );
+                    StructProp->CopySingleValue(PropertyAddr, &Color);
+                    UE_LOG(LogTemp, Display, TEXT("Setting FLinearColor property %s to (R=%f, G=%f, B=%f, A=1.0)"), 
+                          *PropertyName, Color.R, Color.G, Color.B);
+                    bStructHandled = true;
+                }
+                else
+                {
+                    OutErrorMessage = FString::Printf(TEXT("FLinearColor property requires 3 (RGB) or 4 (RGBA) values, got %d"), Arr.Num());
+                }
+            }
+            // Handle FRotator
+            else if (StructProp->Struct == TBaseStructure<FRotator>::Get())
+            {
+                if (Arr.Num() == 3) // Pitch, Yaw, Roll
+                {
+                    FRotator Rotator(
+                        Arr[0]->AsNumber(), // Pitch
+                        Arr[1]->AsNumber(), // Yaw
+                        Arr[2]->AsNumber()  // Roll
+                    );
+                    StructProp->CopySingleValue(PropertyAddr, &Rotator);
+                    UE_LOG(LogTemp, Display, TEXT("Setting FRotator property %s to (P=%f, Y=%f, R=%f)"), 
+                          *PropertyName, Rotator.Pitch, Rotator.Yaw, Rotator.Roll);
+                    bStructHandled = true;
+                }
+                else
+                {
+                    OutErrorMessage = FString::Printf(TEXT("FRotator property requires 3 values (Pitch, Yaw, Roll), got %d"), Arr.Num());
+                }
+            }
+            // NOTE: FVector is handled specifically in HandleSetComponentProperty currently, 
+            // but could be moved here for consistency if desired.
+            
+            if (bStructHandled)
+            {
+                return true; // Successfully handled the struct
+            }
+        }
+        else
+        {
+             OutErrorMessage = FString::Printf(TEXT("Struct property %s requires a JSON array value"), *PropertyName);
+        }
+        // If we reach here, the struct type wasn't handled or input was wrong
+        if (OutErrorMessage.IsEmpty())
+        {
+            OutErrorMessage = FString::Printf(TEXT("Unsupported struct type '%s' for property %s"), 
+                StructProp->Struct ? *StructProp->Struct->GetName() : TEXT("Unknown"), *PropertyName);
+        }
+        return false;
+    }
     
     OutErrorMessage = FString::Printf(TEXT("Unsupported property type: %s for property %s"), 
                                     *Property->GetClass()->GetName(), *PropertyName);
     return false;
-} 
+}
+
+// Implementation for the new helper function
+bool FUnrealMCPCommonUtils::SetPropertyFromJson(FProperty* Property, void* ContainerPtr, const TSharedPtr<FJsonValue>& JsonValue)
+{
+    if (!Property || !ContainerPtr || !JsonValue.IsValid())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson: Invalid input parameter(s)."));
+        return false;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Property Name: %s, Type: %s"), *Property->GetName(), *Property->GetCPPType());
+
+    // Handle different property types
+    if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
+    {
+        bool Value;
+        if (JsonValue->TryGetBool(Value))
+        {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting Bool property to: %s"), Value ? TEXT("true") : TEXT("false"));
+            BoolProperty->SetPropertyValue(ContainerPtr, Value);
+            return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to set Bool property, incompatible value type"));
+        }
+    }
+    else if (FIntProperty* IntProperty = CastField<FIntProperty>(Property))
+    {
+        int32 Value;
+        if (JsonValue->TryGetNumber(Value))
+        {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting Int property to: %d"), Value);
+            IntProperty->SetPropertyValue(ContainerPtr, Value);
+            return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to set Int property, incompatible value type"));
+        }
+    }
+    else if (FFloatProperty* FloatProperty = CastField<FFloatProperty>(Property))
+    {
+        double Value; // JSON numbers are doubles
+        if (JsonValue->TryGetNumber(Value))
+        {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting Float property to: %f"), static_cast<float>(Value));
+            FloatProperty->SetPropertyValue(ContainerPtr, static_cast<float>(Value));
+            return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to set Float property, incompatible value type"));
+        }
+    }
+    else if (FDoubleProperty* DoubleProperty = CastField<FDoubleProperty>(Property))
+    {
+        double Value;
+        if (JsonValue->TryGetNumber(Value))
+        {
+            DoubleProperty->SetPropertyValue(ContainerPtr, Value);
+            return true;
+        }
+    }
+    else if (FStrProperty* StrProperty = CastField<FStrProperty>(Property))
+    {
+        FString Value;
+        if (JsonValue->TryGetString(Value))
+        {
+            StrProperty->SetPropertyValue(ContainerPtr, Value);
+            return true;
+        }
+    }
+    else if (FNameProperty* NameProperty = CastField<FNameProperty>(Property))
+    {
+        FString Value;
+        if (JsonValue->TryGetString(Value))
+        {
+            NameProperty->SetPropertyValue(ContainerPtr, FName(*Value));
+            return true;
+        }
+    }
+    else if (FTextProperty* TextProperty = CastField<FTextProperty>(Property))
+    {
+        FString Value;
+        if (JsonValue->TryGetString(Value))
+        {
+            TextProperty->SetPropertyValue(ContainerPtr, FText::FromString(Value));
+            return true;
+        }
+    }
+    else if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+    {
+        UEnum* Enum = EnumProperty->GetEnum();
+        if (!Enum) return false;
+
+        FString StringValue;
+        int64 IntValue;
+
+        if (JsonValue->TryGetString(StringValue)) // Try setting by string name first
+        {
+            IntValue = Enum->GetValueByNameString(StringValue);
+            if (IntValue != INDEX_NONE)
+            {
+                EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(ContainerPtr, IntValue);
+                return true;
+            }
+        }
+        else if (JsonValue->TryGetNumber(IntValue)) // Try setting by integer index
+        {
+             if (Enum->IsValidEnumValue(IntValue))
+             {
+                 EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(ContainerPtr, IntValue);
+                 return true;
+             }
+        }
+    }
+    else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+    {
+        UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Found Struct property: %s"), 
+            StructProperty->Struct ? *StructProperty->Struct->GetName() : TEXT("NULL"));
+            
+        const TSharedPtr<FJsonObject>* JsonObject;
+        if (JsonValue->TryGetObject(JsonObject))
+        {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Processing JsonObject for struct"));
+            // Use JsonObjectConverter to convert the JSON object to the struct
+            if (FJsonObjectConverter::JsonObjectToUStruct(JsonObject->ToSharedRef(), StructProperty->Struct, ContainerPtr, 0, 0))
+            {
+                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Successfully converted JsonObject to struct"));
+                return true;
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to convert JsonObject to struct"));
+            }
+        }
+        // Handle common structs specifically if needed (e.g., FVector, FLinearColor from array)
+        else if (StructProperty->Struct == TBaseStructure<FVector>::Get()) 
+        {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Handling FVector struct"));
+            const TArray<TSharedPtr<FJsonValue>>* JsonArray;
+            if (JsonValue->TryGetArray(JsonArray)) 
+            {
+                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Got array for FVector with %d elements"), JsonArray->Num());
+                FVector VecValue;
+                if (ParseVector(*JsonArray, VecValue))
+                {
+                    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting FVector to (%f, %f, %f)"), 
+                        VecValue.X, VecValue.Y, VecValue.Z);
+                    *static_cast<FVector*>(ContainerPtr) = VecValue;
+                    return true;
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to parse Vector from array"));
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Expected array for Vector but got different type"));
+            }
+        }
+        else if (StructProperty->Struct == TBaseStructure<FLinearColor>::Get())
+        {
+            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Handling FLinearColor struct"));
+            const TArray<TSharedPtr<FJsonValue>>* JsonArray;
+            if (JsonValue->TryGetArray(JsonArray))
+            {
+                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Got array for FLinearColor with %d elements"), JsonArray->Num());
+                FLinearColor ColorValue;
+                if (ParseLinearColor(*JsonArray, ColorValue))
+                {
+                    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting FLinearColor to (%f, %f, %f, %f)"), 
+                        ColorValue.R, ColorValue.G, ColorValue.B, ColorValue.A);
+                    *static_cast<FLinearColor*>(ContainerPtr) = ColorValue;
+                    return true;
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to parse LinearColor from array"));
+                }
+            }
+            // Additional check for string format, like when a string representation of an array is passed
+            else if (JsonValue->Type == EJson::String)
+            {
+                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Got string for FLinearColor: %s"), *JsonValue->AsString());
+                FString ColorString = JsonValue->AsString();
+                
+                // Check if the string looks like an array: "[r, g, b, a]"
+                if (ColorString.StartsWith(TEXT("[")) && ColorString.EndsWith(TEXT("]")))
+                {
+                    // Remove brackets
+                    ColorString = ColorString.Mid(1, ColorString.Len() - 2);
+                    
+                    // Split by commas
+                    TArray<FString> ColorComponents;
+                    ColorString.ParseIntoArray(ColorComponents, TEXT(","), true);
+                    
+                    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Parsed %d color components from string"), ColorComponents.Num());
+                    
+                    if (ColorComponents.Num() >= 3)
+                    {
+                        float R = FCString::Atof(*ColorComponents[0].TrimStart());
+                        float G = FCString::Atof(*ColorComponents[1].TrimStart());
+                        float B = FCString::Atof(*ColorComponents[2].TrimStart());
+                        float A = ColorComponents.Num() >= 4 ? FCString::Atof(*ColorComponents[3].TrimStart()) : 1.0f;
+                        
+                        FLinearColor ColorValue(R, G, B, A);
+                        UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting FLinearColor from string to (%f, %f, %f, %f)"), 
+                            ColorValue.R, ColorValue.G, ColorValue.B, ColorValue.A);
+                        *static_cast<FLinearColor*>(ContainerPtr) = ColorValue;
+                        return true;
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Not enough color components in string: %s"), *ColorString);
+                    }
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Color string is not in expected format: %s"), *ColorString);
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Expected array or string for LinearColor but got different type"));
+            }
+        }
+        // ... existing code ...
+    }
+    // ... existing code ...
+
+    // Log failure if no suitable type handler was found
+    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson: Unsupported property type '%s' or invalid JSON value type."), *Property->GetClass()->GetName());
+    return false;
+}
+
+// Example implementation for ParseVector (adjust as needed)
+bool FUnrealMCPCommonUtils::ParseVector(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FVector& OutVector)
+{
+    if (JsonArray.Num() == 3) 
+    {
+        double X, Y, Z;
+        if (JsonArray[0]->TryGetNumber(X) && JsonArray[1]->TryGetNumber(Y) && JsonArray[2]->TryGetNumber(Z))
+        {
+            OutVector.X = X;
+            OutVector.Y = Y;
+            OutVector.Z = Z;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Example implementation for ParseLinearColor (adjust as needed)
+bool FUnrealMCPCommonUtils::ParseLinearColor(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FLinearColor& OutColor)
+{
+    UE_LOG(LogTemp, Log, TEXT("ParseLinearColor - Array has %d elements"), JsonArray.Num());
+    
+    if (JsonArray.Num() < 3)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ParseLinearColor - Array has insufficient elements: %d (need at least 3)"), JsonArray.Num());
+        return false;
+    }
+
+    // Check each element to ensure they are numbers
+    for (int32 i = 0; i < JsonArray.Num() && i < 4; ++i)
+    {
+        if (JsonArray[i]->Type != EJson::Number)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("ParseLinearColor - Element %d is not a number (type: %d)"), i, (int)JsonArray[i]->Type);
+            return false;
+        }
+    }
+
+    // Extract RGB values
+    float R = JsonArray[0]->AsNumber();
+    float G = JsonArray[1]->AsNumber();
+    float B = JsonArray[2]->AsNumber();
+    
+    // Extract Alpha if available, otherwise default to 1.0
+    float A = 1.0f;
+    if (JsonArray.Num() >= 4)
+    {
+        A = JsonArray[3]->AsNumber();
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("ParseLinearColor - Parsed color: R=%f, G=%f, B=%f, A=%f"), R, G, B, A);
+    
+    // Set the output color
+    OutColor = FLinearColor(R, G, B, A);
+    return true;
+}
+
+// Placeholder for ParseRotator if needed
+bool FUnrealMCPCommonUtils::ParseRotator(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FRotator& OutRotator)
+{
+    if (JsonArray.Num() == 3) 
+    {
+        double P, Y, R;
+        if (JsonArray[0]->TryGetNumber(P) && JsonArray[1]->TryGetNumber(Y) && JsonArray[2]->TryGetNumber(R))
+        {
+            OutRotator.Pitch = P;
+            OutRotator.Yaw = Y;
+            OutRotator.Roll = R;
+            return true;
+        }
+    }
+    return false;
+}
+
+// FindActorByName implementation might already exist, ensure it's suitable or adapt
+AActor* FUnrealMCPCommonUtils::FindActorByName(const FString& ActorName)
+{
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (!World) return nullptr;
+
+    for (TActorIterator<AActor> It(World); It; ++It)
+    {
+        AActor* Actor = *It;
+        if (Actor && Actor->GetName() == ActorName)
+        {
+            return Actor;
+        }
+    }
+    return nullptr;
+}
+
+bool FUnrealMCPCommonUtils::CallFunctionByName(UObject* Target, const FString& FunctionName, const TArray<FString>& StringParams, FString& OutError)
+{
+    if (!Target) {
+        OutError = TEXT("Target is null");
+        return false;
+    }
+    UFunction* Function = Target->FindFunction(FName(*FunctionName));
+    if (!Function) {
+        OutError = FString::Printf(TEXT("Function not found: %s"), *FunctionName);
+        return false;
+    }
+    uint8* Params = (uint8*)FMemory_Alloca(Function->ParmsSize);
+    FMemory::Memzero(Params, Function->ParmsSize);
+
+    int32 ParamIndex = 0;
+    for (TFieldIterator<FProperty> It(Function); It && (It->PropertyFlags & CPF_Parm); ++It)
+    {
+        if (It->IsA<FStrProperty>() && ParamIndex < StringParams.Num())
+        {
+            FStrProperty* StrProp = CastField<FStrProperty>(*It);
+            void* ValuePtr = It->ContainerPtrToValuePtr<void>(Params);
+            StrProp->SetPropertyValue(ValuePtr, StringParams[ParamIndex]);
+            ParamIndex++;
+        }
+        // Extend for other types as needed
+    }
+    Target->ProcessEvent(Function, Params);
+    return true;
+}

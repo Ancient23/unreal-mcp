@@ -7,6 +7,18 @@ This module provides tools for controlling the Unreal Editor viewport and other 
 import logging
 from typing import Dict, List, Any, Optional
 from mcp.server.fastmcp import FastMCP, Context
+from utils.editor.editor_operations import (
+    get_actors_in_level as get_actors_in_level_impl,
+    find_actors_by_name as find_actors_by_name_impl,
+    spawn_actor as spawn_actor_impl,
+    delete_actor as delete_actor_impl,
+    set_actor_transform as set_actor_transform_impl,
+    get_actor_properties as get_actor_properties_impl,
+    set_actor_property as set_actor_property_impl,
+    set_light_property as set_light_property_impl,
+    focus_viewport as focus_viewport_impl,
+    spawn_blueprint_actor as spawn_blueprint_actor_impl
+)
 
 # Get logger
 logger = logging.getLogger("UnrealMCP")
@@ -16,248 +28,265 @@ def register_editor_tools(mcp: FastMCP):
     
     @mcp.tool()
     def get_actors_in_level(ctx: Context) -> List[Dict[str, Any]]:
-        """Get a list of all actors in the current level."""
-        from unreal_mcp_server import get_unreal_connection
+        """
+        Get a list of all actors in the current level.
         
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.warning("Failed to connect to Unreal Engine")
-                return []
-                
-            response = unreal.send_command("get_actors_in_level", {})
+        Returns:
+            List of actors in the current level with their properties
             
-            if not response:
-                logger.warning("No response from Unreal Engine")
-                return []
-                
-            # Log the complete response for debugging
-            logger.info(f"Complete response from Unreal: {response}")
-            
-            # Check response format
-            if "result" in response and "actors" in response["result"]:
-                actors = response["result"]["actors"]
-                logger.info(f"Found {len(actors)} actors in level")
-                return actors
-            elif "actors" in response:
-                actors = response["actors"]
-                logger.info(f"Found {len(actors)} actors in level")
-                return actors
-                
-            logger.warning(f"Unexpected response format: {response}")
-            return []
-            
-        except Exception as e:
-            logger.error(f"Error getting actors: {e}")
-            return []
+        Examples:
+            actors = get_actors_in_level()
+            # Print names of all actors in level
+            for actor in actors:
+                print(actor["name"])
+        """
+        return get_actors_in_level_impl(ctx)
 
     @mcp.tool()
     def find_actors_by_name(ctx: Context, pattern: str) -> List[str]:
-        """Find actors by name pattern."""
-        from unreal_mcp_server import get_unreal_connection
+        """
+        Find actors by name pattern.
         
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.warning("Failed to connect to Unreal Engine")
-                return []
-                
-            response = unreal.send_command("find_actors_by_name", {
-                "pattern": pattern
-            })
+        Args:
+            pattern: Name pattern to search for (supports wildcards using *)
             
-            if not response:
-                return []
-                
-            return response.get("actors", [])
+        Returns:
+            List of actor names matching the pattern
             
-        except Exception as e:
-            logger.error(f"Error finding actors: {e}")
-            return []
+        Examples:
+            # Find all Point Light actors
+            lights = find_actors_by_name("*PointLight*")
+            
+            # Find a specific actor
+            player = find_actors_by_name("Player*")
+        """
+        return find_actors_by_name_impl(ctx, pattern)
     
     @mcp.tool()
     def spawn_actor(
         ctx: Context,
         name: str,
         type: str,
-        location: List[float] = [0.0, 0.0, 0.0],
-        rotation: List[float] = [0.0, 0.0, 0.0]
+        location: List[float] = None,
+        rotation: List[float] = None
     ) -> Dict[str, Any]:
-        """Create a new actor in the current level.
+        """
+        Create a new basic Unreal Engine actor in the current level.
+        This function is used for spawning built-in Unreal Engine actor types only.
         
         Args:
-            ctx: The MCP context
             name: The name to give the new actor (must be unique)
-            type: The type of actor to create (e.g. StaticMeshActor, PointLight)
+            type: The type of built-in actor to create. Supported types:
+                  - StaticMeshActor: Basic static mesh actor
+                  - PointLight: Point light source
+                  - SpotLight: Spot light source
+                  - DirectionalLight: Directional light source
+                  - CameraActor: Camera actor
             location: The [x, y, z] world location to spawn at
             rotation: The [pitch, yaw, roll] rotation in degrees
             
         Returns:
             Dict containing the created actor's properties
+            
+        Examples:
+            # Spawn a point light at origin
+            spawn_actor(name="MyLight", type="PointLight")
+            
+            # Spawn a static mesh at a specific location
+            spawn_actor(name="MyCube", type="StaticMeshActor", 
+                       location=[100, 200, 50], 
+                       rotation=[0, 45, 0])
+                       
+        Note:
+            This function is for basic actor types only. For spawning custom Blueprint 
+            actors with custom logic and components, use spawn_blueprint_actor() instead.
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            # Ensure all parameters are properly formatted
-            params = {
-                "name": name,
-                "type": type.upper(),  # Make sure type is uppercase
-                "location": location,
-                "rotation": rotation
-            }
-            
-            # Validate location and rotation formats
-            for param_name in ["location", "rotation"]:
-                param_value = params[param_name]
-                if not isinstance(param_value, list) or len(param_value) != 3:
-                    logger.error(f"Invalid {param_name} format: {param_value}. Must be a list of 3 float values.")
-                    return {"success": False, "message": f"Invalid {param_name} format. Must be a list of 3 float values."}
-                # Ensure all values are float
-                params[param_name] = [float(val) for val in param_value]
-            
-            logger.info(f"Creating actor '{name}' of type '{type}' with params: {params}")
-            response = unreal.send_command("spawn_actor", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            # Log the complete response for debugging
-            logger.info(f"Actor creation response: {response}")
-            
-            # Handle error responses correctly
-            if response.get("status") == "error":
-                error_message = response.get("error", "Unknown error")
-                logger.error(f"Error creating actor: {error_message}")
-                return {"success": False, "message": error_message}
-            
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error creating actor: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return spawn_actor_impl(ctx, name, type, location, rotation)
     
     @mcp.tool()
     def delete_actor(ctx: Context, name: str) -> Dict[str, Any]:
-        """Delete an actor by name."""
-        from unreal_mcp_server import get_unreal_connection
+        """
+        Delete an actor by name.
         
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-                
-            response = unreal.send_command("delete_actor", {
-                "name": name
-            })
-            return response or {}
+        Args:
+            name: Name of the actor to delete
             
-        except Exception as e:
-            logger.error(f"Error deleting actor: {e}")
-            return {}
+        Returns:
+            Dict containing response information
+            
+        Examples:
+            # Delete an actor named "MyCube"
+            delete_actor(name="MyCube")
+        """
+        return delete_actor_impl(ctx, name)
     
     @mcp.tool()
     def set_actor_transform(
         ctx: Context,
         name: str,
-        location: List[float]  = None,
-        rotation: List[float]  = None,
+        location: List[float] = None,
+        rotation: List[float] = None,
         scale: List[float] = None
     ) -> Dict[str, Any]:
-        """Set the transform of an actor."""
-        from unreal_mcp_server import get_unreal_connection
+        """
+        Set the transform of an actor.
         
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-                
-            params = {"name": name}
-            if location is not None:
-                params["location"] = location
-            if rotation is not None:
-                params["rotation"] = rotation
-            if scale is not None:
-                params["scale"] = scale
-                
-            response = unreal.send_command("set_actor_transform", params)
-            return response or {}
+        Args:
+            name: Name of the actor
+            location: Optional [X, Y, Z] position
+            rotation: Optional [Pitch, Yaw, Roll] rotation in degrees
+            scale: Optional [X, Y, Z] scale
             
-        except Exception as e:
-            logger.error(f"Error setting transform: {e}")
-            return {}
+        Returns:
+            Dict containing response information
+            
+        Examples:
+            # Move an actor named "MyCube" to a new position
+            set_actor_transform(name="MyCube", location=[100, 200, 50])
+            
+            # Rotate an actor named "MyCube" 45 degrees around Z axis
+            set_actor_transform(name="MyCube", rotation=[0, 0, 45])
+            
+            # Scale an actor named "MyCube" to be twice as big
+            set_actor_transform(name="MyCube", scale=[2.0, 2.0, 2.0])
+            
+            # Move, rotate, and scale an actor all at once
+            set_actor_transform(
+                name="MyCube", 
+                location=[100, 200, 50],
+                rotation=[0, 0, 45],
+                scale=[2.0, 2.0, 2.0]
+            )
+        """
+        return set_actor_transform_impl(ctx, name, location, rotation, scale)
     
     @mcp.tool()
     def get_actor_properties(ctx: Context, name: str) -> Dict[str, Any]:
-        """Get all properties of an actor."""
-        from unreal_mcp_server import get_unreal_connection
+        """
+        Get all properties of an actor.
         
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-                
-            response = unreal.send_command("get_actor_properties", {
-                "name": name
-            })
-            return response or {}
+        Args:
+            name: Name of the actor
             
-        except Exception as e:
-            logger.error(f"Error getting properties: {e}")
-            return {}
+        Returns:
+            Dict containing actor properties
+            
+        Examples:
+            # Get properties of an actor named "MyCube"
+            props = get_actor_properties(name="MyCube")
+            
+            # Print location
+            print(props["transform"]["location"])
+        """
+        return get_actor_properties_impl(ctx, name)
 
     @mcp.tool()
     def set_actor_property(
         ctx: Context,
         name: str,
         property_name: str,
-        property_value,
+        property_value
     ) -> Dict[str, Any]:
         """
         Set a property on an actor.
         
+        Note: Currently there's a limitation with the property_value parameter type.
+        Please contact the MCP system administrator for proper usage.
+        
         Args:
             name: Name of the actor
             property_name: Name of the property to set
+            property_value: Value to set the property to. Different property types accept different value formats:
+                - For boolean properties: True/False
+                - For numeric properties: int or float values
+                - For string properties: string values
+                - For color properties: [R, G, B, A] list (0-255 values)
+                - For vector properties: [X, Y, Z] list
+                - For enum properties: String name of the enum value or integer index
+            
+        Returns:
+            Dict containing response information
+            
+        Examples:
+            # Change the color of a light
+            set_actor_property(
+                name="MyPointLight",
+                property_name="LightColor",
+                property_value=[255, 0, 0, 255]  # RGBA
+            )
+            
+            # Change the mobility of an actor
+            set_actor_property(
+                name="MyCube",
+                property_name="Mobility",
+                property_value="Movable"  # "Static", "Stationary", or "Movable"
+            )
+            
+            # Set a boolean property
+            set_actor_property(
+                name="MyCube",
+                property_name="bHidden",
+                property_value=True
+            )
+            
+            # Set a numeric property
+            set_actor_property(
+                name="PointLightTest",
+                property_name="Intensity",
+                property_value=5000.0
+            )
+        """
+        return set_actor_property_impl(ctx, name, property_name, property_value)
+
+    @mcp.tool()
+    def set_light_property(
+        ctx: Context,
+        name: str,
+        property_name: str,
+        property_value
+    ) -> Dict[str, Any]:
+        """
+        Set a property on a light component.
+        
+        This function accesses the LightComponent of a light actor and sets properties on it.
+        
+        Args:
+            name: Name of the light actor
+            property_name: Property to set, one of:
+                - "Intensity": Brightness of the light (float)
+                - "LightColor": Color of the light (array [R, G, B] with values 0-1)
+                - "AttenuationRadius": How far the light reaches (float)
+                - "SourceRadius": Size of the light source (float)
+                - "SoftSourceRadius": Size of the soft light source border (float)
+                - "CastShadows": Whether the light casts shadows (boolean)
             property_value: Value to set the property to
             
         Returns:
-            Dict containing response from Unreal with operation status
+            Dict containing response information
+            
+        Examples:
+            # Set light intensity
+            set_light_property(
+                name="MyPointLight",
+                property_name="Intensity",
+                property_value=5000.0
+            )
+            
+            # Set light color to red
+            set_light_property(
+                name="MyPointLight",
+                property_name="LightColor",
+                property_value=[1.0, 0.0, 0.0]
+            )
+            
+            # Set light attenuation radius
+            set_light_property(
+                name="MyPointLight",
+                property_name="AttenuationRadius",
+                property_value=500.0
+            )
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-                
-            response = unreal.send_command("set_actor_property", {
-                "name": name,
-                "property_name": property_name,
-                "property_value": property_value
-            })
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Set actor property response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error setting actor property: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return set_light_property_impl(ctx, name, property_name, property_value)
 
     # @mcp.tool() commented out because it's buggy
     def focus_viewport(
@@ -278,92 +307,72 @@ def register_editor_tools(mcp: FastMCP):
             
         Returns:
             Response from Unreal Engine
+            
+        Examples:
+            # Focus on an actor named "MyCube"
+            focus_viewport(target="MyCube")
+            
+            # Focus on a specific location
+            focus_viewport(location=[100, 200, 50])
+            
+            # Focus on an actor from a specific orientation
+            focus_viewport(target="MyCube", orientation=[45, 0, 0])
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-                
-            params = {}
-            if target:
-                params["target"] = target
-            elif location:
-                params["location"] = location
-            
-            if distance:
-                params["distance"] = distance
-                
-            if orientation:
-                params["orientation"] = orientation
-                
-            response = unreal.send_command("focus_viewport", params)
-            return response or {}
-            
-        except Exception as e:
-            logger.error(f"Error focusing viewport: {e}")
-            return {"status": "error", "message": str(e)}
+        return focus_viewport_impl(ctx, target, location, distance, orientation)
 
     @mcp.tool()
     def spawn_blueprint_actor(
         ctx: Context,
         blueprint_name: str,
         actor_name: str,
-        location: List[float] = [0.0, 0.0, 0.0],
-        rotation: List[float] = [0.0, 0.0, 0.0]
+        location: List[float] = None,
+        rotation: List[float] = None
     ) -> Dict[str, Any]:
-        """Spawn an actor from a Blueprint.
+        """
+        Spawn an actor from a Blueprint class in the current level.
+        This function is used for spawning custom Blueprint actors that can have:
+        - Custom components and hierarchies
+        - Visual scripting logic
+        - Custom variables and events
+        - Complex behaviors and interactions
         
         Args:
-            ctx: The MCP context
-            blueprint_name: Name of the Blueprint to spawn from
-            actor_name: Name to give the spawned actor
+            blueprint_name: Path to the Blueprint to spawn from. Can be:
+                          - Absolute path: "/Game/Blueprints/BP_Character"
+                          - Relative path: "BP_Character" (will be prefixed with "/Game/Blueprints/")
+            actor_name: Name to give the spawned actor instance (must be unique)
             location: The [x, y, z] world location to spawn at
             rotation: The [pitch, yaw, roll] rotation in degrees
             
         Returns:
             Dict containing the spawned actor's properties
+            
+        Examples:
+            # Spawn a blueprint actor with a relative path (looks in /Game/Blueprints/)
+            spawn_blueprint_actor(
+                blueprint_name="BP_Character",
+                actor_name="MyCharacter_1"
+            )
+            
+            # Spawn a blueprint actor with a full path
+            spawn_blueprint_actor(
+                blueprint_name="/Game/Characters/BP_Enemy",
+                actor_name="Enemy_1",
+                location=[100, 200, 50],
+                rotation=[0, 45, 0]
+            )
+            
+            # For ThirdPerson template project character
+            spawn_blueprint_actor(
+                blueprint_name="/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter",
+                actor_name="Player1",
+                location=[0, 0, 100]
+            )
+            
+        Note:
+            This function requires the Blueprint to exist and be properly compiled.
+            For spawning basic actor types (lights, static meshes, etc.), use spawn_actor() instead.
         """
-        from unreal_mcp_server import get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            # Ensure all parameters are properly formatted
-            params = {
-                "blueprint_name": blueprint_name,
-                "actor_name": actor_name,
-                "location": location or [0.0, 0.0, 0.0],
-                "rotation": rotation or [0.0, 0.0, 0.0]
-            }
-            
-            # Validate location and rotation formats
-            for param_name in ["location", "rotation"]:
-                param_value = params[param_name]
-                if not isinstance(param_value, list) or len(param_value) != 3:
-                    logger.error(f"Invalid {param_name} format: {param_value}. Must be a list of 3 float values.")
-                    return {"success": False, "message": f"Invalid {param_name} format. Must be a list of 3 float values."}
-                # Ensure all values are float
-                params[param_name] = [float(val) for val in param_value]
-            
-            logger.info(f"Spawning blueprint actor with params: {params}")
-            response = unreal.send_command("spawn_blueprint_actor", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"Spawn blueprint actor response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error spawning blueprint actor: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+        return spawn_blueprint_actor_impl(ctx, blueprint_name, actor_name, location, rotation)
 
     logger.info("Editor tools registered successfully")
