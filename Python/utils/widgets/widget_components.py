@@ -330,3 +330,26 @@ def get_widget_component_layout_impl(ctx: Context, widget_name: str) -> dict:
     # Just prepare params and call send_unreal_command, returning its result directly.
     # Response parsing and detailed error handling will be done in the tool function.
     return send_unreal_command(command, params)
+
+def get_widget_component_layout(
+    ctx: Context,
+    widget_name: str
+) -> Dict[str, Any]:
+    """
+    Get hierarchical layout information for all components within a UMG Widget Blueprint.
+    
+    Args:
+        ctx: The current context
+        widget_name: Name of the target Widget Blueprint
+        
+    Returns:
+        Dict containing the hierarchical component structure with layout properties
+        
+    Example:
+        ```python
+        # Get layout information for a pricing widget
+        layout = get_widget_component_layout(ctx, "WBP_PricingPage")
+        ```
+    """
+    # Call the implementation function
+    return get_widget_component_layout_impl(ctx, widget_name)
