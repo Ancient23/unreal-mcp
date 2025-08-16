@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogUnrealMCP, Log, All);
+
 class FUnrealMCPModule : public IModuleInterface
 {
 public:
@@ -15,8 +17,8 @@ public:
 		return FModuleManager::LoadModuleChecked<FUnrealMCPModule>("UnrealMCP");
 	}
 
-	static inline bool IsAvailable()
-	{
-		return FModuleManager::Get().IsModuleLoaded("UnrealMCP");
-	}
-}; 
+        static inline bool IsAvailable()
+        {
+                return FModuleManager::Get().IsModuleLoaded("UnrealMCP");
+        }
+};
